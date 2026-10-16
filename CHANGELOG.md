@@ -98,6 +98,45 @@ discussion and diff. New entries must include that link; see
   or provably absent contracts only, the unfunded all-zero source account,
   no live-varying state); and covers the validator's `[expect]` rejections.
   ([PR #308])
+- A **staged** resource-estimation fixture corpus for
+  [issue #301](https://github.com/StellarCanary/ProtocolCanary-Fixtures/issues/301),
+  under `tests/vectors/resource_estimation/`: three complete fixtures
+  (min-fee positivity and XDR width bounds; `resourceFee` inside
+  `transactionData` equal to `minResourceFee`; a pure-read footprint) plus
+  that directory's `README.md`. They assert
+  `expect.kind = "simulation-resource-estimate"`, which `canary-soroban`
+  does not implement, so they are deliberately **not** fixtures: both
+  `tools/validate/validate.py` and `tools/badge/badge.py` discover packs by
+  globbing `protocol-*/` only, so nothing there is parsed, counted in the
+  badge, or handed to the loader. Every bound is an XDR field width from
+  `stellar-xdr` v28.0 or a positivity floor — never a guessed "reasonable"
+  number — because fees and instruction counts are live-varying. The
+  observations were made 2026-10-16 (UTC) against
+  `soroban-testnet.stellar.org` at ledger 5216960 and are recorded verbatim
+  in each file's `[staged_observation]` table, a staging artifact to delete
+  on promotion. The fixture IDs and the promotion criteria are listed in
+  `docs/protocol-28.md`, "The staged resource-estimation corpus". ([PR #310])
+- `schemas/proposed/simulation-resource-estimate.expect.json`: the proposed
+  `[expect]` vocabulary those staged fixtures use, as a real JSON Schema
+  validated by `tools/validate/jsonschema_lite.py`. It is not referenced
+  from `schemas/fixture-v1.schema.json` and not read by
+  `tools/validate/schema_sync.py`, so the shipped schema keeps mirroring the
+  released loader as CONTRIBUTING.md requires. ([PR #310])
+- `tests/test_sim_resource_fixtures.py` (54 tests): validates each staged
+  `[expect]` against the proposed fragment; covers issue #301's negative
+  cases (a negative, zero, non-integer or int64-overflowing fee floor, a
+  uint32-overflowing instruction bound, a negative footprint count, an
+  inverted bound pair, an unknown key, a missing or shipped `kind`, and
+  `resource_fee_matches_min_resource_fee = false`); decodes each recorded
+  `transactionData` byte-exactly against the v28.0 XDR — asserting full
+  consumption, so a mis-aligned read cannot pass — and checks the declared
+  bounds hold for the observation cited, that the footprint's contract hash
+  is the strkey payload of the invoked contract, and that the returned
+  `ScVal` is the SEP-41 value for the function called; and guards the
+  shipped pack, asserting that nothing under `protocol-*/` uses the proposed
+  kind, that `tools/validate/validate.py` does in fact reject it, that the
+  staging directory sits outside every scan root, and that the fixture-count
+  badge is unchanged. ([PR #310])
 
 ### Changed
 
@@ -209,14 +248,16 @@ discussion and diff. New entries must include that link; see
   deployment are recorded in [`docs/protocol-28.md`](docs/protocol-28.md) and
   tracked by [issue #8](https://github.com/StellarCanary/ProtocolCanary-Fixtures/issues/8).
   ([757e1e7])
-- **Soroban simulation `auth` and resource-estimation assertions are not
-  covered.** [Issue #300](https://github.com/StellarCanary/ProtocolCanary-Fixtures/issues/300)
+- **Soroban simulation `auth` assertions are not covered, and the
+  resource-estimation fixtures are staged rather than shipped.**
+  [Issue #300](https://github.com/StellarCanary/ProtocolCanary-Fixtures/issues/300)
   (F-043) asks for fixtures asserting on the `auth` array a
   `simulateTransaction` response carries, and
   [issue #301](https://github.com/StellarCanary/ProtocolCanary-Fixtures/issues/301)
   (F-044) for fixtures asserting on `minResourceFee`/`transactionData`.
   Neither is expressible in the fixture contract this repository mirrors:
-  read against `StellarCanary/Protocol-Canary` at `2a88756`,
+  read against `StellarCanary/Protocol-Canary` at `4d2cb99` (re-checked
+  2026-10-16; unchanged since the `2a88756` audit),
   `SimulationResponse` has no `auth` field at all, `SorobanAssertion` has
   exactly two variants (`SimulationSuccess`, `SimulationError`) and rejects
   any other `expect.kind` or any extra `[expect]` key, and
@@ -231,8 +272,10 @@ discussion and diff. New entries must include that link; see
   gap closes once upstream
   [#517](https://github.com/StellarCanary/Protocol-Canary/issues/517)
   (E-119, open) and an equivalent resource-estimation assertion land and
-  are released. See `docs/protocol-28.md`, "Soroban simulation auth and
-  resource estimation". ([PR #308])
+  are released. Issue #301's fixtures are therefore written in full but held
+  under `tests/vectors/resource_estimation/`, outside the `protocol-*/` scan
+  roots, as recorded in the "Added" entries above. See `docs/protocol-28.md`,
+  "Soroban simulation auth and resource estimation". ([PR #308], [PR #310])
 - **Contract panics and contract-defined error codes are not covered by the
   simulation-error suite.** `SCErrorType`'s tenth member, `SCE_CONTRACT`,
   carries a user-defined `uint32` rather than an `SCErrorCode`, and a WASM
@@ -277,3 +320,4 @@ discussion and diff. New entries must include that link; see
 [PR #236]: https://github.com/StellarCanary/ProtocolCanary-Fixtures/pull/236
 [PR #252]: https://github.com/StellarCanary/ProtocolCanary-Fixtures/pull/252
 [PR #308]: https://github.com/StellarCanary/ProtocolCanary-Fixtures/pull/308
+[PR #310]: https://github.com/StellarCanary/ProtocolCanary-Fixtures/pull/310
